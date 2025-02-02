@@ -182,7 +182,7 @@ async function loadCSV() {
 						notes: note || "",
 						type: entryType || "",
 						acctName: accountName || "",
-						imported_id: uniqueImportedId
+						imported_id: uniqueImportedId,
 					});
 				})
 				.on("end", () => {

@@ -28,7 +28,7 @@ function parseDate(dateString) {
 		// Format as "YYYY-MM-DD"
 		return format(parsedDate, "yyyy-MM-dd");
 	} catch (error) {
-		console.warn(`⚠ Invalid date format detected: ${dateString}`);
+		console.warn(`❗ Invalid date format detected: ${dateString}`);
 		return null;
 	}
 }
@@ -61,7 +61,7 @@ function cleanData(text) {
 		fixedText = he.decode(fixedText.trim());
 		return fixedText;
 	} catch (error) {
-		console.warn(`⚠ Error decoding text: ${text}`, error);
+		console.warn(`❗ Error decoding text: ${text}`, error);
 		return text.trim(); // Ensure at least trimming happens
 	}
 }
@@ -133,7 +133,7 @@ async function loadCSV() {
 					// Parse and check date
 					let formattedDate = parseDate(row["Date"]);
 					if (!formattedDate || isAfter(parse(row["Date"], "dd.MM.yyyy", new Date()), new Date())) {
-						console.warn(`⚠ Skipping future transaction: ${row["Date"]}`);
+						console.warn(`❗ Skipping future transaction: ${row["Date"]}`);
 						return;
 					}
 
@@ -300,7 +300,7 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 		const categoryId = categoryIdMap.get(transaction.category) || null;
 
 		if (!acctId) {
-			console.warn(`⚠ Skipping transaction: Account '${transaction.acctName}' not found. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
+			console.warn(`❗ Skipping transaction: Account '${transaction.acctName}' not found. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
 			continue;
 		}
 
@@ -430,9 +430,9 @@ async function runImport() {
 		const duplicateIds = Array.from(importedIdMap.entries()).filter(([id, rows]) => rows.length > 1);
 		if (duplicateIds.length > 0) {
 			if (FORCE_DUPLICATES) {
-				console.warn(`\n⚠ ${duplicateIds.length} duplicates forcefully imported.`);
+				console.warn(`\n❗ ${duplicateIds.length} duplicates forcefully imported.`);
 			} else {
-				console.warn(`\n⚠ Warning: ${duplicateIds.length} duplicate transactions detected based on imported_id.`);
+				console.warn(`\n❗ Warning: ${duplicateIds.length} duplicate transactions detected based on imported_id.`);
 				duplicateIds.forEach(([id, rows]) => {
 					console.warn(`\n${id}`);
 					rows.forEach((row, index) => {
@@ -480,9 +480,9 @@ async function sync() {
 		// Check for duplicate imported_id occurrences
 		const duplicateIds = Array.from(importedIdMap.entries()).filter(([id, rows]) => rows.length > 1);
 		if (duplicateIds.length > 0) {
-			console.warn(`\n⚠ Warning: ${duplicateIds.length} duplicate transactions detected based on imported_id.`);
+			console.warn(`\n❗ Warning: ${duplicateIds.length} duplicate transactions detected based on imported_id.`);
 			duplicateIds.forEach(([id, rows]) => {
-				console.warn(`\n⚠ Duplicate imported_id: ${id}`);
+				console.warn(`\n❗ Duplicate imported_id: ${id}`);
 				rows.forEach((row, index) => {
 					console.warn(`  #${index + 1}: ${JSON.stringify(row)}`);
 				});

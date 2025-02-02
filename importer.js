@@ -148,7 +148,11 @@ async function loadCSV() {
 
 					if (accountName) accounts.add(accountName);
 					if (counterAccount) accounts.add(counterAccount);
-					if (categoryName) categories.add(categoryName);
+
+					// Add category to set if it doesn't exist
+					if (categoryName && ![...categories].some(cat => cat.name === categoryName && cat.is_income === (entryType === "income"))) {
+						categories.add({ name: categoryName, is_income: entryType === "income" });
+					}
 
 					const payee_name = counterAccount || (
 						person ? `👤 ${person} ` : "" +
@@ -227,6 +231,8 @@ async function importCategories(categories, categoryIdMap, transactions) {
 	let importedGroup = existingGroups.find(group => group.name === "Imported");
 	let incomeGroup = existingGroups.find(group => group.is_income === true); // Get the existing income group
 
+	DEBUG && console.log("Existing Category Groups:", existingGroups);
+
 	// If "Imported" group doesn't exist, create it
 	if (!importedGroup) {
 		console.log("Creating 'Imported' category group...");
@@ -237,61 +243,20 @@ async function importCategories(categories, categoryIdMap, transactions) {
 		DEBUG && console.log(`✔ Found existing 'Imported' category group (ID: ${importedGroup.id})`);
 	}
 
-	// Ensure an income group exists
-	if (!incomeGroup) {
-		throw new Error("❌ No existing income category group found in Actual.");
-	}
-
 	// Fetch existing categories
 	const existingCategories = await api.getCategories();
-
-	// Separate income and expense categories to avoid conflicts with same names
-	const existingIncomeCategories = new Map();
-	const existingExpenseCategories = new Map();
-
-	for (const cat of existingCategories) {
-		if (cat.is_income) {
-			existingIncomeCategories.set(cat.name, cat.id);
-		} else {
-			existingExpenseCategories.set(cat.name, cat.id);
-		}
-	}
-
-	// Determine if a category is an income category based on transactions
-	const incomeCategories = new Set(
-		transactions.filter(t => t.type === "income").map(t => t.category)
-	);
+	DEBUG && console.log("Existing Categories:", existingCategories);
 
 	return Promise.all(
-		[...categories].map(async (name) => {
-			const isIncomeCategory = incomeCategories.has(name);
-			const groupId = isIncomeCategory ? incomeGroup.id : importedGroup.id;
-
-			if (isIncomeCategory && existingExpenseCategories.has(name)) {
-				// The category exists as an expense but should be created as an income category
-				console.log(`✔ Creating separate income category for: ${name}`);
-				const id = await api.createCategory({ name, group_id: incomeGroup.id, is_income: true });
-				categoryIdMap.set(name, id);
-				console.log(`✔ Created new income category: ${name} (ID: ${id})`);
-			} else if (!isIncomeCategory && existingIncomeCategories.has(name)) {
-				// The category exists as an income but should be created as an expense category
-				console.log(`✔ Creating separate expense category for: ${name}`);
-				const id = await api.createCategory({ name, group_id: importedGroup.id, is_income: false });
-				categoryIdMap.set(name, id);
-				console.log(`✔ Created new expense category: ${name} (ID: ${id})`);
-			} else if (
-				(isIncomeCategory && existingIncomeCategories.has(name)) ||
-				(!isIncomeCategory && existingExpenseCategories.has(name))
-			) {
-				// Category already exists in the correct group
-				const categoryId = isIncomeCategory ? existingIncomeCategories.get(name) : existingExpenseCategories.get(name);
-				categoryIdMap.set(name, categoryId);
-				DEBUG && console.log(`✔ Category already exists: ${name} (ID: ${categoryId})`);
+		[...categories].map(async ({ name, is_income }) => {
+			const existingCategory = existingCategories.find(cat => cat.name === name && cat.is_income === is_income);
+			if (existingCategory) {
+				categoryIdMap.set(`${name}-${is_income ? "income" : "expense"}`, existingCategory.id);
+				DEBUG && console.log(`✔ ${is_income ? "Income" : "Expense"} category already exists: ${name} (ID: ${existingCategory.id})`);
 			} else {
-				// Create new category in the correct group
-				const id = await api.createCategory({ name, group_id: groupId, is_income: isIncomeCategory });
-				categoryIdMap.set(name, id);
-				console.log(`✔ Created new ${isIncomeCategory ? "income" : "expense"} category: ${name} (ID: ${id})`);
+				const id = await api.createCategory({ name, group_id: is_income ? incomeGroup.id : importedGroup.id, is_income });
+				categoryIdMap.set(`${name}-${is_income ? "income" : "expense"}`, id);
+				console.log(`✔ Created new ${is_income ? "income" : "expense"} category: ${name} (ID: ${id})`);
 			}
 		})
 	);
@@ -311,7 +276,7 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 
 	for (const transaction of transactions) {
 		const acctId = accountIdMap.get(transaction.acctName);
-		const categoryId = categoryIdMap.get(transaction.category) || null;
+		const categoryId = categoryIdMap.get(`${transaction.category}-${transaction.type}`) || null;
 
 		if (!acctId) {
 			console.warn(`❗ Skipping transaction: Account '${transaction.acctName}' not found. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
@@ -443,7 +408,8 @@ async function runImport() {
 		DEBUG && console.log("Account ID Map:", accountIdMap);
 
 		console.log("\nImporting Categories...");
-		const sortedCategories = [...categories].sort((a, b) => a.localeCompare(b, "de"));
+		const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name, "de"));
+		DEBUG && console.log("sortedCategories:", sortedCategories);
 		await importCategories(sortedCategories, categoryIdMap, transactions);
 		console.log("Syncing changes...");
 		await api.sync();

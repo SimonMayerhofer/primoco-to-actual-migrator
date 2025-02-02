@@ -267,7 +267,19 @@ async function importCategories(categories, categoryIdMap, transactions) {
 			const isIncomeCategory = incomeCategories.has(name);
 			const groupId = isIncomeCategory ? incomeGroup.id : importedGroup.id;
 
-			if (
+			if (isIncomeCategory && existingExpenseCategories.has(name)) {
+				// The category exists as an expense but should be created as an income category
+				console.log(`✔ Creating separate income category for: ${name}`);
+				const id = await api.createCategory({ name, group_id: incomeGroup.id, is_income: true });
+				categoryIdMap.set(name, id);
+				console.log(`✔ Created new income category: ${name} (ID: ${id})`);
+			} else if (!isIncomeCategory && existingIncomeCategories.has(name)) {
+				// The category exists as an income but should be created as an expense category
+				console.log(`✔ Creating separate expense category for: ${name}`);
+				const id = await api.createCategory({ name, group_id: importedGroup.id, is_income: false });
+				categoryIdMap.set(name, id);
+				console.log(`✔ Created new expense category: ${name} (ID: ${id})`);
+			} else if (
 				(isIncomeCategory && existingIncomeCategories.has(name)) ||
 				(!isIncomeCategory && existingExpenseCategories.has(name))
 			) {

@@ -307,6 +307,7 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 
 	// Group transactions by account ID
 	const transactionsByAccount = new Map();
+	console.log("Preparing transactions...");
 
 	for (const transaction of transactions) {
 		const acctId = accountIdMap.get(transaction.acctName);
@@ -358,12 +359,17 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 		transactionsByAccount.get(acctId).push(transactionData);
 	}
 
+	console.log("Importing transactions...");
 	// Suppress console.log output when DEBUG is off, because of huge amount by API.
 	const originalConsoleLog = console.log;
-	console.log = () => {}; // Suppress logs when DEBUG is off
 
 	try {
+		let totalImported = 0;
+		let totalUpdated = 0;
+		let totalErrors = 0;
+
 		for (const [acctId, accountTransactions] of transactionsByAccount) {
+			const accountName = [...accountIdMap.entries()].find(([name, id]) => id === acctId)[0] || `Unknown (${acctId})`;
 			// Batch transactions in groups of 1000, to avoid network errors.
 			for (let i = 0; i < accountTransactions.length; i += 1000) {
 				const batch = accountTransactions.slice(i, i + 1000);
@@ -372,7 +378,9 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 					const result = await api.importTransactions(acctId, batch);
 					console.log = originalConsoleLog; // Restore logs
 
-					const accountName = [...accountIdMap.entries()].find(([name, id]) => id === acctId)?.[0] || `Unknown (${acctId})`;
+					totalImported += result.added.length;
+					totalUpdated += result.updated.length;
+					totalErrors += Array.isArray(result.errors) ? result.errors.length : 0;
 
 					console.log(
 						`✔ Imported ${batch.length} transactions for Account '${accountName}': Added ${result.added.length}, Updated ${result.updated.length}, Errors ${Array.isArray(result.errors) ? result.errors.length : 0}`
@@ -382,6 +390,15 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 					await api.sync();
 				}
 			}
+		}
+		// Final Summary
+		console.log("\n✅ Import Summary:");
+		console.log(`   ✔ Total Transactions Imported: ${totalImported}`);
+		if (totalUpdated > 0) {
+			console.log(`   ✔ Total Transactions Updated: ${totalUpdated}`);
+		}
+		if (totalErrors > 0) {
+			console.log(`   ❌ Total Errors: ${totalErrors}`);
 		}
 	} finally {
 		console.log = originalConsoleLog;

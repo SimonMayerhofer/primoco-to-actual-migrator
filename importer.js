@@ -147,6 +147,7 @@ async function loadCSV() {
 					let note = cleanData(row["Note"]);
 
 					if (accountName) accounts.add(accountName);
+					if (counterAccount) accounts.add(counterAccount);
 					if (categoryName) categories.add(categoryName);
 
 					const payee_name = counterAccount || (

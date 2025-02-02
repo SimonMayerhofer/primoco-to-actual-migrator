@@ -4,7 +4,7 @@ Date;Entry Type;Value;Currencs;Category;Person;Account;Counter Account;Group;Not
 "01.11.2018";"Expense";"-10050,00";"EUR";"Cat1";"";"Account 3";"";"";"Note 3";"no";
 "01.11.2018";"Expense";"-28,81";"EUR";"Cat &auml; 2";"";"Account 2";"";"";"Note 4";"no";
 "02.11.2018";"Income";"2,80";"EUR";"Cat &gt; 3";"";"Account 1";"";"";"Note 5";"no";
-"02.11.2018";"Income";"2,80";"EUR";"Cat &gt; 3";"";"Account 1";"";"";"Note 5";"no";
+"02.11.2018";"Expense";"2,80";"EUR";"Cat &gt; 3";"";"Account 1";"";"";"Note 5";"no";
 "02.11.2018";"Income";"2,80";"EUR";"Cat &gt; 3";"";"Account 1";"";"";"Note 5";"no";
 "18.11.2018";"Transfer";"555,81";"EUR";"";"";"Account 1";"Account 2";"";"Note 6";"no";
 "18.11.2018";"Transfer";"555,81";"EUR";"";"";"Account 1";"Account 2";"";"Note 6";"no";

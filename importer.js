@@ -336,21 +336,23 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 		if (transaction.type === "transfer") {
 			const counterAcctId = accountIdMap.get(transaction.payee_name);
 
+			// If no counter account is found, convert the transaction to an expense
 			if (!counterAcctId) {
-				console.warn(`⚠ Transfer skipped: Counter account '${transaction.payee_name}' not found. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
-				continue;
-			}
+				console.warn(`❗ Transfer transaction converted to Expense: No counter account found. Transaction: '${transaction.acctName}', ${transaction.date}, Amount: ${transaction.amount}, Cat: '${transaction.category}', Notes: '${transaction.notes}'`);
+				transaction.type = "expense"; // Convert transfer to expense
+				transaction.amount = transaction.amount * -1; // negate the amount
+			} else {
+				const transferPayeeId = payeesByAccount.get(counterAcctId);
+				if (!transferPayeeId) {
+					console.warn(`❗ No transfer payee found for account: '${transaction.payee_name}'. Skipping transaction. Transaction: ${transaction.date}, Amount: ${transaction.amount}, Notes: '${transaction.notes}'`);
+					continue;
+				}
 
-			const transferPayeeId = payeesByAccount.get(counterAcctId);
-			if (!transferPayeeId) {
-				console.warn(`⚠ No transfer payee found for account: '${transaction.payee_name}'. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
-				continue;
+				transactionData.payee = transferPayeeId; // Assign the correct transfer payee
+				transactionData.payee_name = null; // Prevent payee from being identified as a new payee
+				transactionData.category = null; // Transfers should not have a category
+				transactionData.amount = transactionData.amount * -1; // Invert, so money flow is correct
 			}
-
-			transactionData.payee = transferPayeeId; // Assign the correct transfer payee
-			transactionData.payee_name = null; // prevent payee from beeing identified as a new payee
-			transactionData.category = null; // Transfers should not have a category
-			transactionData.amount = transactionData.amount * -1; // invert, so money flow is correct
 		}
 
 		transactionsByAccount.get(acctId).push(transactionData);

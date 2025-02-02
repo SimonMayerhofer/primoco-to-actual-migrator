@@ -9,6 +9,7 @@ const { decode } = he; // Extract decode function for use
 import chardet from "chardet";
 import iconv from "iconv-lite";
 import { Readable } from "stream";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
@@ -272,11 +273,12 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 
 	// Group transactions by account ID
 	const transactionsByAccount = new Map();
-	console.log("Preparing transactions...");
+	console.log("  ↳ Preparing transactions...");
 
 	for (const transaction of transactions) {
 		const acctId = accountIdMap.get(transaction.acctName);
 		const categoryId = categoryIdMap.get(`${transaction.category}-${transaction.type}`) || null;
+		const transactionId = uuidv4(); // Generate UUID for each transaction
 
 		if (!acctId) {
 			console.warn(`❗ Skipping transaction: Account '${transaction.acctName}' not found. Transaction: ${transaction.date}, ${transaction.amount}, '${transaction.category}',  '${transaction.notes}'`);
@@ -289,6 +291,7 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 		}
 
 		let transactionData = {
+			id: transactionId,
 			date: transaction.date,
 			amount: transaction.amount,
 			category: categoryId,
@@ -298,33 +301,59 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 			cleared: MARK_CLEARED,
 		};
 
+		let mirroredTransaction = null;
+		let counterAcctId = null;
+
 		// Handle transfers
 		if (transaction.type === "transfer") {
-			const counterAcctId = accountIdMap.get(transaction.payee_name);
+			counterAcctId = accountIdMap.get(transaction.payee_name);
 
 			// If no counter account is found, convert the transaction to an expense
 			if (!counterAcctId) {
-				console.warn(`❗ Transfer transaction converted to Expense: No counter account found. Transaction: '${transaction.acctName}', ${transaction.date}, Amount: ${transaction.amount}, Cat: '${transaction.category}', Notes: '${transaction.notes}'`);
+				console.warn(`  ❗ Transfer transaction converted to Expense: No counter account found. Transaction: '${transaction.acctName}', ${transaction.date}, Amount: ${transaction.amount}, Cat: '${transaction.category}', Notes: '${transaction.notes}'`);
 				transaction.type = "expense"; // Convert transfer to expense
 				transaction.amount = transaction.amount * -1; // negate the amount
 			} else {
 				const transferPayeeId = payeesByAccount.get(counterAcctId);
 				if (!transferPayeeId) {
-					console.warn(`❗ No transfer payee found for account: '${transaction.payee_name}'. Skipping transaction. Transaction: ${transaction.date}, Amount: ${transaction.amount}, Notes: '${transaction.notes}'`);
+					console.warn(`  ❗ No transfer payee found for account: '${transaction.payee_name}'. Skipping transaction. Transaction: ${transaction.date}, Amount: ${transaction.amount}, Notes: '${transaction.notes}'`);
 					continue;
 				}
-
 				transactionData.payee = transferPayeeId; // Assign the correct transfer payee
 				transactionData.payee_name = null; // Prevent payee from being identified as a new payee
 				transactionData.category = null; // Transfers should not have a category
 				transactionData.amount = transactionData.amount * -1; // Invert, so money flow is correct
+
+				// Create a mirrored transaction for the counter account
+				const mirroredTransactionId = uuidv4(); // UUID for mirrored transaction
+				transactionData.transfer_id = mirroredTransactionId;
+
+				mirroredTransaction = {
+					id: mirroredTransactionId,
+					date: transaction.date,
+					amount: transaction.amount, // Mirror amount for the other account
+					category: null, // Transfers do not have categories
+					payee: payeesByAccount.get(acctId), // Reverse the payee name
+					notes: transaction.notes,
+					imported_id: transaction.imported_id,
+					cleared: MARK_CLEARED,
+					transfer_id: transactionId, // Point back to the original
+				};
+
+				if (!transactionsByAccount.has(counterAcctId)) {
+					transactionsByAccount.set(counterAcctId, []);
+				}
 			}
 		}
 
 		transactionsByAccount.get(acctId).push(transactionData);
+
+		if (mirroredTransaction) {
+			transactionsByAccount.get(counterAcctId).push(mirroredTransaction);
+		}
 	}
 
-	console.log("Importing transactions...");
+	console.log("\n  ↳ Importing transactions...");
 	// Suppress console.log output when DEBUG is off, because of huge amount by API.
 	const originalConsoleLog = console.log;
 
@@ -340,19 +369,14 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 				const batch = accountTransactions.slice(i, i + 1000);
 				if (batch.length > 0) {
 					console.log = () => {}; // Suppress logs
-					const result = await api.importTransactions(acctId, batch);
-					console.log = originalConsoleLog; // Restore logs
 
-					totalImported += result.added.length;
-					totalUpdated += result.updated.length;
-					totalErrors += Array.isArray(result.errors) ? result.errors.length : 0;
-
-					console.log(
-						`✔ Imported ${batch.length} transactions for Account '${accountName}': Added ${result.added.length}, Updated ${result.updated.length}, Errors ${Array.isArray(result.errors) ? result.errors.length : 0}`
-					);
-
+					totalImported += batch.length;
 					// Sync after every batch
 					await api.sync();
+					console.log = originalConsoleLog; // Restore logs
+					console.log(
+						`  ✔ Imported ${batch.length} transactions for Account '${accountName}'`
+					);
 				}
 			}
 		}

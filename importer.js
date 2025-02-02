@@ -19,7 +19,6 @@ const SYNC_ID = process.env.SYNC_ID;
 const E2E_PASSWORD = process.env.E2E_PASSWORD;
 const CSV_FILE_PATH = process.env.CSV_FILE_PATH;
 const MARK_CLEARED = process.env.MARK_CLEARED === "true";
-const FORCE_DUPLICATES = process.env.FORCE_DUPLICATES === "true";
 const DEBUG = process.env.DEBUG === "true";
 
 function parseDate(dateString) {
@@ -169,11 +168,7 @@ async function loadCSV() {
 					if (importedIdMap.has(baseImportedId)) {
 						const existingEntries = importedIdMap.get(baseImportedId);
 						const duplicateIndex = existingEntries.length; // First duplicate gets `-1`, second `-2`, etc.
-
-						if (FORCE_DUPLICATES) {
-							uniqueImportedId = `${baseImportedId}-${duplicateIndex}`;
-						}
-
+						uniqueImportedId = `${baseImportedId}-${duplicateIndex}`;
 						existingEntries.push({ ...row, imported_id: uniqueImportedId });
 					} else {
 						importedIdMap.set(baseImportedId, [{ ...row, imported_id: baseImportedId }]);
@@ -447,22 +442,6 @@ async function runImport() {
 		console.log("\nShutting down...");
 		await api.shutdown();
 		console.log("Import Complete!");
-
-		// Check for duplicate imported_id occurrences
-		const duplicateIds = Array.from(importedIdMap.entries()).filter(([id, rows]) => rows.length > 1);
-		if (duplicateIds.length > 0) {
-			if (FORCE_DUPLICATES) {
-				console.warn(`\n❗ ${duplicateIds.length} duplicates forcefully imported.`);
-			} else {
-				console.warn(`\n❗ Warning: ${duplicateIds.length} duplicate transactions detected based on imported_id.`);
-				duplicateIds.forEach(([id, rows]) => {
-					console.warn(`\n${id}`);
-					rows.forEach((row, index) => {
-						console.warn(`    ${JSON.stringify(row)}`);
-					});
-				});
-			}
-		}
 	} catch (error) {
 		console.error("❌ Error in runImport:", error);
 		await api.shutdown();

@@ -365,6 +365,7 @@ async function importTransactions(transactions, accountIdMap, categoryIdMap) {
 				if (batch.length > 0) {
 					console.log = () => {}; // Suppress logs
 
+					const result = await api.importTransactions(acctId, batch);
 					totalImported += batch.length;
 					// Sync after every batch
 					await api.sync();

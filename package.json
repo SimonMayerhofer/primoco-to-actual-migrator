@@ -1,7 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@actual-app/api": "^25.1.0",
+    "@actual-app/api": "^25.2.1",
     "axios": "^1.7.9",
     "chardet": "^2.0.0",
     "csv-parser": "^3.2.0",
